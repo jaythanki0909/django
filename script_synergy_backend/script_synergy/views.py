@@ -34,7 +34,7 @@ class LoginAPIView(APIView):
             if user is None:
                 raise SynergyNoSuchUserFoundException(email=email)
             elif user.validate_password(
-                password=password
+                    password=password
             ):  # Assuming passwords are stored in plaintext
                 # Generate JWT token
                 token = user.create_new_jwt_token()
@@ -87,6 +87,49 @@ class SignUpView(APIView):
             )
         except SynergyBaseException as e:
             return Response(data={"status": "ERROR", "data": {"message": e.message}})
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class CuratorUserAPIView(APIView):
+    authentication_classes = [SynergyAuthentication]
+
+    def get(self, request):
+        try:
+            resp = request.user.fetch_curator_details()
+            return Response(data={"status": "OK", "data": resp})
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def put(self, request: Request):
+        try:
+            data = request.data
+            name = data["name"]
+            email = data["email"]
+            professional_bio = data["professionalBio"]
+            hourly_rate = data["hourlyRate"]
+            expertise = data["expertise"]
+            payment_id = data["paymentId"]
+            request.user.update_profile_details(name=name,email=email,  professional_bio=professional_bio, hourly_rate=hourly_rate,
+                                                expertise=expertise, payment_id=payment_id)
+            resp = request.user.fetch_curator_details()
+            return Response(data={"status": "OK", "data": resp})
         except Exception as e:
             print_tb(e.__traceback__)
             print(e.__str__())
@@ -181,8 +224,8 @@ class WriterDocumentPreSignedDocumentURLAPIView(APIView):
 
     def get(self, request, document_id: int):
         try:
-            document = WriterDocuments.get_writer_document_by_id_and_writer(
-                primary_key=document_id, writer=request.user
+            document = WriterDocuments.get_writer_document_by_id(
+                primary_key=document_id
             )
             url = document.get_presigned_url()
             return Response(data={"status": "OK", "data": {"url": url}})
@@ -224,9 +267,7 @@ class SendCuratorInvitationAPIview(APIView):
         try:
             writer = request.user
             if isinstance(writer, Writer):
-
                 data = request.data
-                print(data)
                 curator_id = data["curatorId"]
                 document_id = data["documentId"]
                 message = data["message"]
@@ -241,6 +282,99 @@ class SendCuratorInvitationAPIview(APIView):
                 )
             else:
                 raise Exception("Invalid Permission for the user")
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class CuratorNotificationDashboardAPIView(APIView):
+    authentication_classes = [SynergyAuthentication]
+
+    def get(self, request: Request):
+        try:
+            resp = Notifications.fetch_curator_dashboard_response(curator=request.user)
+            return Response(data={"status": "OK", "data": resp})
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class CuratorAcceptAndDeclineInvitationAPIView(APIView):
+    authentication_classes = [SynergyAuthentication]
+
+    def post(self, request: Request):
+        try:
+            data = request.data
+            notification_id = data["notificationId"]
+            invitation_accepted = data["invitationAccepted"]
+
+            Notifications.accept_or_decline_invitations(
+                notification_id=notification_id, invitation_accepted=invitation_accepted, curator=request.user
+            )
+
+            return Response(
+                data={"status": "OK", "data": {"message": "Invitation Status Updated"}}
+            )
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class UpdateCuratorFeedbackAPIView(APIView):
+    authentication_classes = [SynergyAuthentication]
+
+    def put(self, request: Request):
+        try:
+            data = request.data
+            notification_id = data["notificationId"]
+            feedback = data["feedback"]
+            Notifications.update_curator_feedback(
+                notification_id=notification_id, feedback=feedback, curator=request.user
+            )
+
+            return Response(
+                data={"status": "OK", "data": {"message": "Invitation Status Updated"}}
+            )
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class WriterNotificationDashboardAPIView(APIView):
+    authentication_classes = [SynergyAuthentication]
+
+    def get(self, request: Request):
+        try:
+            resp = Notifications.fetch_writer_dashboard_response(writer=request.user)
+            return Response(data={"status": "OK", "data": resp})
         except Exception as e:
             print_tb(e.__traceback__)
             print(e.__str__())

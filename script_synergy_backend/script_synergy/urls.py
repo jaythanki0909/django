@@ -10,6 +10,9 @@ from script_synergy.views import (
     test_api,
     SaveWriterDocumentTextAPIView,
     SendCuratorInvitationAPIview,
+    CuratorNotificationDashboardAPIView,
+    CuratorAcceptAndDeclineInvitationAPIView, UpdateCuratorFeedbackAPIView, WriterNotificationDashboardAPIView,
+    CuratorUserAPIView
 )
 
 urlpatterns = [
@@ -35,6 +38,31 @@ urlpatterns = [
         "send-curator-invitaion/",
         SendCuratorInvitationAPIview.as_view(),
         name="send_curator_invitation",
+    ),
+    path(
+        "curator-notification-dashboard/",
+        CuratorNotificationDashboardAPIView.as_view(),
+        name="curator_notification_dashboard",
+    ),
+    path(
+        "curator-accept-decline-invitations/",
+        CuratorAcceptAndDeclineInvitationAPIView.as_view(),
+        name="curator_accept_decline_invitation",
+    ),
+    path(
+        "update-curator-feedback/",
+        UpdateCuratorFeedbackAPIView.as_view(),
+        name="update_curator_feedback",
+    ),
+    path(
+        "writer-notification-dashboard/",
+        WriterNotificationDashboardAPIView.as_view(),
+        name="writer_notification_dashboard",
+    ),
+    path(
+        "curator-profile/",
+        CuratorUserAPIView.as_view(),
+        name="curator_profile",
     ),
     path("login/", LoginAPIView.as_view(), name="login"),
     path("signup/", SignUpView.as_view(), name="signup"),

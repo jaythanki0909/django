@@ -1,4 +1,3 @@
-import datetime
 import re
 from io import BytesIO
 from typing import Optional
@@ -18,7 +17,7 @@ class CreateAndUpdateDateTimeModel(models.Model):
     updated_at = models.DateTimeField()
 
     def save(
-        self, force_insert=False, force_update=False, using=None, update_fields=None
+            self, force_insert=False, force_update=False, using=None, update_fields=None
     ):
         now = timezone.now()
         if self.pk is None:
@@ -86,17 +85,30 @@ class Curator(CreateAndUpdateDateTimeModel):
         resp = []
         for curator in curators:
             resp.append(
-                {
-                    "id": curator.pk,
-                    "name": curator.name,
-                    "professionalBio": curator.professional_bio,
-                    "rating": curator.rating,
-                    "hourlyRate": curator.hourly_rate,
-                    "expertise": curator.expertise,
-                    "paymentId": curator.payment_id,
-                }
+                curator.fetch_curator_details()
             )
         return resp
+
+    def fetch_curator_details(self):
+        return {
+            "id": self.pk,
+            "name": self.name,
+            "email": self.email,
+            "professionalBio": self.professional_bio,
+            "rating": self.rating,
+            "hourlyRate": self.hourly_rate,
+            "expertise": self.expertise,
+            "paymentId": self.payment_id,
+        }
+
+    def update_profile_details(self, name,email ,professional_bio, hourly_rate, expertise, payment_id):
+        self.name = name
+        self.professional_bio = professional_bio
+        self.hourly_rate = hourly_rate
+        self.expertise = expertise
+        self.payment_id = payment_id
+        self.email = email
+        self.save()
 
     def create_new_jwt_token(self):
         return jwt.encode(
@@ -245,7 +257,144 @@ class Notifications(CreateAndUpdateDateTimeModel):
     def create_new_instance(cls, writer, curator_id, document_id, message):
         curator = Curator.objects.get(pk=curator_id)
         document = WriterDocuments.get_writer_document_by_id(primary_key=document_id)
-        instance = Notifications(
+        Notifications.objects.create(
             writer=writer, curator=curator, document=document, writer_message=message
         )
-        instance.save()
+
+    @classmethod
+    def fetch_curator_dashboard_response(cls, curator):
+        notifications = cls.objects.select_related("writer", "document").filter(
+            curator=curator
+        )
+        resp = {
+            "pendingInvitations": [],
+            "pendingCurations": [],
+            "declinedInvitations": [],
+            "curatedDocuments": [],
+        }
+        for notification in notifications:
+            if notification.status == cls.Status.CURATOR_INVITED:
+                resp["pendingInvitations"].append(
+                    {
+                        "id": notification.pk,
+                        "writerId": notification.writer.pk,
+                        "writerEmail": notification.writer.email,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                        "writerMessage": notification.writer_message,
+                    }
+                )
+            elif notification.status == cls.Status.CURATOR_ACCEPTED_INVITE:
+                resp["pendingCurations"].append(
+                    {
+                        "id": notification.pk,
+                        "writerId": notification.writer.pk,
+                        "writerEmail": notification.writer.email,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                        "writerMessage": notification.writer_message,
+                    }
+                )
+            elif notification.status == cls.Status.DOCUMENT_CURATED:
+                resp["curatedDocuments"].append(
+                    {
+                        "id": notification.pk,
+                        "writerId": notification.writer.pk,
+                        "writerEmail": notification.writer.email,
+                        "writerMessage": notification.writer_message,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                        "documentScore": notification.curator_score,
+                        "curatorMessage": notification.curator_message,
+                    }
+                )
+            elif notification.status == cls.Status.CURATOR_DECLINED_INVITE:
+                resp["declinedInvitations"].append(
+                    {
+                        "id": notification.pk,
+                        "writerId": notification.writer.pk,
+                        "writerEmail": notification.writer.email,
+                        "writerMessage": notification.writer_message,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                    }
+                )
+        return resp
+
+    @classmethod
+    def accept_or_decline_invitations(
+            cls, notification_id, curator, invitation_accepted
+    ):
+        notification = Notifications.objects.get(pk=notification_id, curator=curator)
+        if invitation_accepted is True:
+            notification.status = cls.Status.CURATOR_ACCEPTED_INVITE.name
+        else:
+            notification.status = cls.Status.CURATOR_DECLINED_INVITE.name
+        notification.save()
+
+    @classmethod
+    def update_curator_feedback(cls, curator, notification_id, feedback):
+        notification = Notifications.objects.get(pk=notification_id, curator=curator)
+        notification.curator_message = feedback
+        notification.status = cls.Status.DOCUMENT_CURATED.name
+        notification.save()
+
+    @classmethod
+    def fetch_writer_dashboard_response(cls, writer):
+        notifications = cls.objects.select_related("writer", "document").filter(
+            writer=writer
+        )
+        resp = {
+            "pendingInvitations": [],
+            "pendingCurations": [],
+            "declinedInvitations": [],
+            "curatedDocuments": [],
+        }
+        for notification in notifications:
+            if notification.status == cls.Status.CURATOR_INVITED:
+                resp["pendingInvitations"].append(
+                    {
+                        "id": notification.pk,
+                        "curatorId": notification.curator.pk,
+                        "curatorName": notification.curator.name,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                        "writerMessage": notification.writer_message,
+                    }
+                )
+            elif notification.status == cls.Status.CURATOR_ACCEPTED_INVITE:
+                resp["pendingCurations"].append(
+                    {
+                        "id": notification.pk,
+                        "curatorId": notification.curator.pk,
+                        "curatorName": notification.curator.name,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                        "writerMessage": notification.writer_message,
+                    }
+                )
+            elif notification.status == cls.Status.CURATOR_DECLINED_INVITE:
+                resp["declinedInvitations"].append(
+                    {
+                        "id": notification.pk,
+                        "curatorId": notification.curator.pk,
+                        "curatorName": notification.curator.name,
+                        "writerMessage": notification.writer_message,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                    }
+                )
+            elif notification.status == cls.Status.DOCUMENT_CURATED:
+                resp["curatedDocuments"].append(
+                    {
+                        "id": notification.pk,
+                        "curatorId": notification.curator.pk,
+                        "curatorName": notification.curator.name,
+                        "writerMessage": notification.writer_message,
+                        "documentId": notification.document.id,
+                        "documentName": notification.document.file_name,
+                        "documentScore": notification.curator_score,
+                        "curatorMessage": notification.curator_message,
+                    }
+                )
+        return resp
