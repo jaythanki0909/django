@@ -11,8 +11,11 @@ from script_synergy.views import (
     SaveWriterDocumentTextAPIView,
     SendCuratorInvitationAPIview,
     CuratorNotificationDashboardAPIView,
-    CuratorAcceptAndDeclineInvitationAPIView, UpdateCuratorFeedbackAPIView, WriterNotificationDashboardAPIView,
-    CuratorUserAPIView
+    CuratorAcceptAndDeclineInvitationAPIView,
+    UpdateCuratorFeedbackAPIView,
+    WriterNotificationDashboardAPIView,
+    CuratorUserAPIView,
+    UploadWriterPDFDocumentAPIView, WriterAIHelperAPIView,
 )
 
 urlpatterns = [
@@ -22,6 +25,11 @@ urlpatterns = [
         "save_editor_text/",
         SaveWriterDocumentTextAPIView.as_view(),
         name="save_editor_text",
+    ),
+    path(
+        "upload_editor_pdf/",
+        UploadWriterPDFDocumentAPIView.as_view(),
+        name="upload_editor_pdf",
     ),
     path(
         "writer-documents/",
@@ -63,6 +71,11 @@ urlpatterns = [
         "curator-profile/",
         CuratorUserAPIView.as_view(),
         name="curator_profile",
+    ),
+    path(
+        "generate-text/",
+        WriterAIHelperAPIView.as_view(),
+        name="generate_text",
     ),
     path("login/", LoginAPIView.as_view(), name="login"),
     path("signup/", SignUpView.as_view(), name="signup"),

@@ -17,7 +17,7 @@ class CreateAndUpdateDateTimeModel(models.Model):
     updated_at = models.DateTimeField()
 
     def save(
-            self, force_insert=False, force_update=False, using=None, update_fields=None
+        self, force_insert=False, force_update=False, using=None, update_fields=None
     ):
         now = timezone.now()
         if self.pk is None:
@@ -84,9 +84,7 @@ class Curator(CreateAndUpdateDateTimeModel):
         curators = cls.objects.all()
         resp = []
         for curator in curators:
-            resp.append(
-                curator.fetch_curator_details()
-            )
+            resp.append(curator.fetch_curator_details())
         return resp
 
     def fetch_curator_details(self):
@@ -101,7 +99,9 @@ class Curator(CreateAndUpdateDateTimeModel):
             "paymentId": self.payment_id,
         }
 
-    def update_profile_details(self, name,email ,professional_bio, hourly_rate, expertise, payment_id):
+    def update_profile_details(
+        self, name, email, professional_bio, hourly_rate, expertise, payment_id
+    ):
         self.name = name
         self.professional_bio = professional_bio
         self.hourly_rate = hourly_rate
@@ -168,15 +168,29 @@ class WriterDocuments(CreateAndUpdateDateTimeModel):
 
     @classmethod
     def store_writers_text_document(cls, writer: Writer, edited_content, file_name):
-        file_type = "txt"
-        file_name = file_name + "." + file_type
+        if ".txt" in file_name:
+            instance = WriterDocuments.objects.get(writer=writer, file_name=file_name)
+            file_name = file_name
+        else:
+            file_type = "txt"
+            file_name = file_name + "." + file_type
+            instance = WriterDocuments(
+                writer=writer,
+                file_name=file_name,
+                _document_type=cls.DocumentType.PLAIN_TEXT.value,
+            )
         S3Handler().upload_file_item(
             file=BytesIO(bytes(edited_content, "UTF-8")), s3_file_name=file_name
         )
+        instance.save()
+
+    @classmethod
+    def store_writers_pdf_document(cls, writer: Writer, file, file_name):
+        S3Handler().upload_file_item(file=file, s3_file_name=file_name)
         instance = WriterDocuments(
             writer=writer,
             file_name=file_name,
-            _document_type=cls.DocumentType.PLAIN_TEXT.value,
+            _document_type=cls.DocumentType.PDF.value,
         )
         instance.save()
 
@@ -323,7 +337,7 @@ class Notifications(CreateAndUpdateDateTimeModel):
 
     @classmethod
     def accept_or_decline_invitations(
-            cls, notification_id, curator, invitation_accepted
+        cls, notification_id, curator, invitation_accepted
     ):
         notification = Notifications.objects.get(pk=notification_id, curator=curator)
         if invitation_accepted is True:

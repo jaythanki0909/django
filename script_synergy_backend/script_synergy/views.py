@@ -1,6 +1,7 @@
 from traceback import print_tb
 
 from django.http import HttpResponse
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.request import Request
@@ -14,6 +15,8 @@ from script_synergy.exceptions import (
 from script_synergy.models import Curator, Writer, WriterDocuments, Notifications
 from script_synergy.constants import INTERNAL_SERVER_ERROR_MESSAGE, Roles
 from script_synergy.utils import SynergyAuthentication
+import requests
+from script_synergy_backend import settings
 
 
 class LoginAPIView(APIView):
@@ -34,7 +37,7 @@ class LoginAPIView(APIView):
             if user is None:
                 raise SynergyNoSuchUserFoundException(email=email)
             elif user.validate_password(
-                    password=password
+                password=password
             ):  # Assuming passwords are stored in plaintext
                 # Generate JWT token
                 token = user.create_new_jwt_token()
@@ -126,8 +129,14 @@ class CuratorUserAPIView(APIView):
             hourly_rate = data["hourlyRate"]
             expertise = data["expertise"]
             payment_id = data["paymentId"]
-            request.user.update_profile_details(name=name,email=email,  professional_bio=professional_bio, hourly_rate=hourly_rate,
-                                                expertise=expertise, payment_id=payment_id)
+            request.user.update_profile_details(
+                name=name,
+                email=email,
+                professional_bio=professional_bio,
+                hourly_rate=hourly_rate,
+                expertise=expertise,
+                payment_id=payment_id,
+            )
             resp = request.user.fetch_curator_details()
             return Response(data={"status": "OK", "data": resp})
         except Exception as e:
@@ -187,6 +196,32 @@ class SaveWriterDocumentTextAPIView(APIView):
                 data={"status": "OK", "data": {"message": "File saved successfully"}}
             )
         except Exception:
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class UploadWriterPDFDocumentAPIView(APIView):
+    authentication_classes = [SynergyAuthentication]
+    parser_classes = (MultiPartParser, FormParser)
+
+    # Writer should only access this view
+    def post(self, request: Request):
+        try:
+            file = request.data
+            WriterDocuments.store_writers_pdf_document(
+                writer=request.user, file_name=file["name"], file=file["file"]
+            )
+            return Response(
+                data={"status": "OK", "data": {"message": "File saved successfully"}}
+            )
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
             return Response(
                 data={
                     "status": "ERROR",
@@ -323,7 +358,9 @@ class CuratorAcceptAndDeclineInvitationAPIView(APIView):
             invitation_accepted = data["invitationAccepted"]
 
             Notifications.accept_or_decline_invitations(
-                notification_id=notification_id, invitation_accepted=invitation_accepted, curator=request.user
+                notification_id=notification_id,
+                invitation_accepted=invitation_accepted,
+                curator=request.user,
             )
 
             return Response(
@@ -375,6 +412,30 @@ class WriterNotificationDashboardAPIView(APIView):
         try:
             resp = Notifications.fetch_writer_dashboard_response(writer=request.user)
             return Response(data={"status": "OK", "data": resp})
+        except Exception as e:
+            print_tb(e.__traceback__)
+            print(e.__str__())
+            return Response(
+                data={
+                    "status": "ERROR",
+                    "data": {"message": INTERNAL_SERVER_ERROR_MESSAGE},
+                },
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class WriterAIHelperAPIView(APIView):
+    def post(self, request: Request):
+        try:
+            data = request.data
+            text = data["text"]
+            payload = {"inputs": text}
+            url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+            headers = {"Authorization": settings.AI_TOKEN}
+            resp = requests.post(url, headers=headers, json=payload)
+            output = resp.json()
+            opt_resp = output[0]["generated_text"].split("\n")[-1]
+            return Response(data={"status": "OK", "data": opt_resp})
         except Exception as e:
             print_tb(e.__traceback__)
             print(e.__str__())
